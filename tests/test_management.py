@@ -228,7 +228,7 @@ MOCK_CERTIFICATE = dict(
 COMPLETE_CERTIFICATE = dict(
     completed='true',
     timestamp=NOW_TIMESTAMP,
-    grade='A-',
+    grade='Pass',
 )
 
 
@@ -441,7 +441,7 @@ def get_expected_output(**expected_completion):
     (dict(), None, True, FUTURE, True, dict(completed='true', timestamp=NOW_TIMESTAMP, grade='Pass')),
 
     # Self-paced course with past end date sends grade=Pass, or grade=Fail, depending on current grade.
-    (dict(), None, True, PAST, False, dict(completed='true', timestamp=PAST_TIMESTAMP, grade='Fail')),
+    (dict(), None, True, PAST, False, dict(completed='false', timestamp=PAST_TIMESTAMP, grade='Fail')),
     (dict(), None, True, PAST, True, dict(completed='true', timestamp=PAST_TIMESTAMP, grade='Pass')),
 ])
 def test_transmit_learner_data(caplog, command_kwargs, certificate, self_paced, end_date, passed, expected_completion):

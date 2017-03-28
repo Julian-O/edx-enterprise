@@ -138,7 +138,7 @@ class TestBaseLearnerExporter(unittest.TestCase):
         assert learner_data[0].course_id == self.course_id
         assert learner_data[0].course_completed
         assert learner_data[0].completed_timestamp == self.NOW_TIMESTAMP
-        assert learner_data[0].grade == 'A-'
+        assert learner_data[0].grade == 'Pass'
 
     @mock.patch('integrated_channels.integrated_channel.learner_data.GradesApiClient')
     @mock.patch('integrated_channels.integrated_channel.learner_data.CourseApiClient')
@@ -202,13 +202,13 @@ class TestBaseLearnerExporter(unittest.TestCase):
         assert len(learner_data) == 1
         assert learner_data[0].enterprise_course_enrollment_id == enrollment.id
         assert learner_data[0].course_id == self.course_id
-        assert learner_data[0].course_completed == (expected_completion is not None)
+        assert learner_data[0].course_completed == (passing and expected_completion is not None)
         assert learner_data[0].completed_timestamp == expected_completion
         assert learner_data[0].grade == expected_grade
 
     @ddt.data(
         ('self', 'Pass'),
-        ('instructor', 'A-'),
+        ('instructor', 'Pass'),
     )
     @ddt.unpack
     @mock.patch('integrated_channels.integrated_channel.learner_data.CertificatesApiClient')

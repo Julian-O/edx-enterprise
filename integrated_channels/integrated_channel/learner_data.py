@@ -117,16 +117,17 @@ class BaseLearnerExporter(object):
 
             # For instructor-paced courses, let the certificate determine course completion
             if course_details.get('pacing') == 'instructor':
-                completed_date, grade = self._collect_certificate_data(enterprise_enrollment)
+                completed_date, grade, is_passing = self._collect_certificate_data(enterprise_enrollment)
 
             # For self-paced courses, check the Grades API
             else:
-                completed_date, grade = self._collect_grades_data(enterprise_enrollment, course_details)
+                completed_date, grade, is_passing = self._collect_grades_data(enterprise_enrollment, course_details)
 
             yield self.get_learner_data_record(
                 enterprise_enrollment=enterprise_enrollment,
                 completed_date=completed_date,
                 grade=grade,
+                is_passing=is_passing,
             )
 
     def _collect_certificate_data(self, enterprise_enrollment):
@@ -152,14 +153,17 @@ class BaseLearnerExporter(object):
                 completed_date = parse_datetime(completed_date)
             else:
                 completed_date = timezone.now()
-            # TODO: use certificate['is_passing'] to send Pass/Fail instead of numeric grade?
-            grade = certificate.get('grade', self.grade_incomplete)
+
+            # For consistency with _collect_grades_data, we only care about Pass/Fail grades. This could change.
+            is_passing = certificate.get('is_passing')
+            grade = self.grade_passing if is_passing else self.grade_failing
 
         except HttpNotFoundError:
             completed_date = None
             grade = self.grade_incomplete
+            is_passing = False
 
-        return completed_date, grade
+        return completed_date, grade, is_passing
 
     def _collect_grades_data(self, enterprise_enrollment, course_details):
         """
@@ -179,7 +183,7 @@ class BaseLearnerExporter(object):
         except HttpNotFoundError:
             # Grade not found, so we have nothing to report.
             LOGGER.error("No grades data found for %d: %s, %s", enterprise_enrollment.pk, course_id, username)
-            return None, None
+            return None, None, None
 
         # Prepare to process the course end date and pass/fail grade
         course_end_date = course_details.get('end')
@@ -204,4 +208,4 @@ class BaseLearnerExporter(object):
             completed_date = None
             grade = self.grade_incomplete
 
-        return completed_date, grade
+        return completed_date, grade, passed
