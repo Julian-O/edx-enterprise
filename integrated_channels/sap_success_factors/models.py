@@ -114,7 +114,7 @@ class SAPSuccessFactorsEnterpriseCustomerConfiguration(EnterpriseCustomerPluginC
         course_completed = False
         if completed_date is not None:
             completed_timestamp = parse_datetime_to_epoch(completed_date)
-            course_completed = True if is_passing else False
+            course_completed = is_passing
 
         return LearnerDataTransmissionAudit(
             enterprise_course_enrollment_id=enterprise_enrollment.id,
