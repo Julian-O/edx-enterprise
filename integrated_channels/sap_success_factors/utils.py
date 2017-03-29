@@ -23,7 +23,11 @@ class SapCourseExporter(BaseCourseExporter):
     Class to provide data transforms for SAP SuccessFactors course export task.
     """
 
+    STATUS_ACTIVE = 'ACTIVE'
+    STATUS_INACTIVE = 'INACTIVE'
+
     def __init__(self, user, plugin_configuration):
+        self.removed_courses_resolved = False
         super(SapCourseExporter, self).__init__(user, plugin_configuration)
 
     def get_serialized_data(self):
@@ -32,13 +36,56 @@ class SapCourseExporter(BaseCourseExporter):
         }
         return json.dumps(final_structure, sort_keys=True).encode('utf-8')
 
+    def resolve_removed_courses(self, previous_audit_summary):
+        """
+        Ensures courses that are no longer in the catalog get properly marked as inactive.
+
+        Args:
+            previous_audit_summary (dict): The previous audit summary from the last course export.
+
+        Returns:
+            An audit summary of courses with information about their presence in the catalog and current status.
+        """
+        if self.removed_courses_resolved:
+            return {}
+
+        new_audit_summary = {}
+
+        for course in self.courses:
+            key = course['courseID']
+            status = course['status']
+            new_audit_summary[key] = {
+                'in_catalog': True,
+                'status': status,
+            }
+            # Remove the key from previous audit summary so we can process courses that are no longer present.
+            if key in previous_audit_summary:
+                del previous_audit_summary[key]
+
+        for key, summary in previous_audit_summary:
+            new_audit_summary[key] = {
+                'in_catalog': False,
+                'status': self.STATUS_INACTIVE,
+            }
+
+            # Add a course payload to self.courses so that courses no longer in the catalog are marked inactive.
+            if summary['status'] == self.STATUS_ACTIVE and summary['in_catalog']:
+                self.courses.append({
+                    'courseID': key,
+                    'status': self.STATUS_INACTIVE,
+                })
+
+        self.removed_courses_resolved = True
+        return new_audit_summary
+
     data_transform = {
         'courseID': lambda x: x['key'],
         'providerID': lambda x: apps.get_model(
             'sap_success_factors',
             'SAPSuccessFactorsGlobalConfiguration'
         ).current().provider_id,
-        'status': lambda x: 'ACTIVE' if x['availability'] == 'Current' else 'INACTIVE',
+        'status': lambda x: (SapCourseExporter.STATUS_ACTIVE if x['availability'] == 'Current'
+                             else SapCourseExporter.STATUS_INACTIVE),
         'title': lambda x: [
             {
                 'locale': 'English',
