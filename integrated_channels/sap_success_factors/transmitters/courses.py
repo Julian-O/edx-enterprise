@@ -18,16 +18,18 @@ class SuccessFactorsCourseTransmitter(SuccessFactorsTransmitterBase):
     This endpoint is intended to carry out an export of course data to SuccessFactors for a given Enterprise.
     """
 
-    def transmit(self, payload):
+    def transmit_block(self, serialized_payload):
         """
-        Send a course data import call to SAP SuccessFactors using the client.
+        SAPSuccessFactors can only send 1000 items at a time, so this method sends one "page" at a time.
 
         Args:
-            payload (SapCourseExporter): The OCN course exporter object to send to SAP SuccessFactors
-        """
-        serialized_payload = payload.get_serialized_data()
-        LOGGER.info(serialized_payload)
+            serialized_payload (bytes): A set of bytes containing a page's worth of data
 
+        Returns:
+            code: An integer status for the HTTP request
+            body: The server's response body
+        """
+        LOGGER.info(serialized_payload)
         try:
             code, body = self.client.send_course_import(serialized_payload)
             LOGGER.debug('Successfully sent course metadata for Enterprise Customer {}'.
@@ -38,7 +40,29 @@ class SuccessFactorsCourseTransmitter(SuccessFactorsTransmitterBase):
             LOGGER.error('Failed to send course metadata for Enterprise Customer {}\nError Message {}'.
                          format(self.enterprise_configuration.enterprise_customer.name, body))
 
-        error_message = body if code >= 400 else ''
+        return code, body
+
+    def transmit(self, payload):
+        """
+        Send a course data import call to SAP SuccessFactors using the client.
+
+        Args:
+            payload (SapCourseExporter): The OCN course exporter object to send to SAP SuccessFactors
+        """
+        total_transmitted = 0
+        errors = []
+        codes = []
+        for serialized_payload, length in payload.get_serialized_data_blocks():
+            code, body = self.transmit_block(serialized_payload)
+            codes.append(str(code))
+            error_message = body if code >= 400 else ''
+            if error_message:
+                errors.append(error_message)
+            else:
+                total_transmitted += length
+
+        error_message = ', '.join(errors) if errors else ''
+        code_string = ', '.join(codes)
 
         CatalogTransmissionAudit = apps.get_model(  # pylint: disable=invalid-name
             app_label='sap_success_factors',
@@ -48,7 +72,7 @@ class SuccessFactorsCourseTransmitter(SuccessFactorsTransmitterBase):
         catalog_transmission_audit = CatalogTransmissionAudit(
             enterprise_customer_uuid=self.enterprise_configuration.enterprise_customer.uuid,
             total_courses=len(payload.courses),
-            status=str(code),
+            status=code_string,
             error_message=error_message
         )
 

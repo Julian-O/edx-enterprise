@@ -658,7 +658,7 @@ class TestEnterpriseCustomerBrandingConfiguration(unittest.TestCase):
         )
         self.assertEqual(method(customer_branding_config), expected_str)
 
-    def test_logo_path(self):
+    def test_logo_path_does_not_exist(self):
         """
         Test path of image file should be enterprise/branding/<model.id>/<model_id>_logo.<ext>.lower().
         """
@@ -670,9 +670,29 @@ class TestEnterpriseCustomerBrandingConfiguration(unittest.TestCase):
         )
 
         storage_mock = mock.MagicMock(spec=Storage, name="StorageMock")
+        storage_mock.exists.return_value = False
         with mock.patch("django.core.files.storage.default_storage._wrapped", storage_mock):
             path = logo_path(branding_config, branding_config.logo.name)
             self.assertEqual(path, "enterprise/branding/1/1_logo.png")
+            assert storage_mock.delete.call_count == 0
+
+    def test_logo_path_exists(self):
+        """
+        Test path of image file should be enterprise/branding/<model.id>/<model_id>_logo.<ext>.lower().
+        """
+        file_mock = self._make_file_mock()
+        branding_config = EnterpriseCustomerBrandingConfiguration(
+            id=1,
+            enterprise_customer=EnterpriseCustomerFactory(),
+            logo=file_mock
+        )
+
+        storage_mock = mock.MagicMock(spec=Storage, name="StorageMock")
+        storage_mock.exists.return_value = True
+        with mock.patch("django.core.files.storage.default_storage._wrapped", storage_mock):
+            path = logo_path(branding_config, branding_config.logo.name)
+            self.assertEqual(path, "enterprise/branding/1/1_logo.png")
+            storage_mock.delete.assert_called_once_with("enterprise/branding/1/1_logo.png")
 
     def test_branding_configuration_saving_successfully(self):
         """
